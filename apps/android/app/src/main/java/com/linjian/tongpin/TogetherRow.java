@@ -21,6 +21,12 @@ import android.widget.TextView;
 import com.linjian.tongpin.data.PlaybackSnapshot;
 import com.linjian.tongpin.data.Prefs;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.URL;
+import java.net.URLConnection;
+
 /**
  * 播放页下面的一条“一起听”。
  * 左边是林霁，右边是桐桐，两个头像随歌曲进度从两边往中间靠，走到底就碰在一起。
@@ -35,8 +41,12 @@ public final class TogetherRow extends LinearLayout {
     private static final int GAP_OPEN_DP = 104;
     private static final int GAP_TOUCH_DP = 4;
 
-    // 头像图已经是裁好的方图，直接铺满，不再二次取景
-    private static final float CROP_SCALE = 1.00f;
+    private static final String REMOTE_DIR =
+            "https://raw.githubusercontent.com/linji666/tongpin-tong/main/"
+                    + "apps/android/app/src/main/res/drawable-nodpi/"
+                    + "apps/android/app/src/main/res/drawable-nodpi/";
+    private static final String URL_ME = REMOTE_DIR + "avatar_me.jpg";
+    private static final String URL_HER = REMOTE_DIR + "avatar_her.jpg";
 
     private static final int COLOR_CARD = 0xFFF4EDE2;
     private static final int COLOR_BORDER = 0xFFE8DAC9;
@@ -77,14 +87,17 @@ public final class TogetherRow extends LinearLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        leftAvatar = avatar(activity, cropAvatar(activity, R.drawable.avatar_me));
+        leftAvatar = avatar(activity);
         stage.addView(leftAvatar, circleParams());
 
         spacer = new View(activity);
         stage.addView(spacer, new LayoutParams(dp(GAP_OPEN_DP), dp(2)));
 
-        rightAvatar = avatar(activity, cropAvatar(activity, R.drawable.avatar_her));
+        rightAvatar = avatar(activity);
         stage.addView(rightAvatar, circleParams());
+
+        bindAvatar(activity, leftAvatar, URL_ME, "avatar_me.jpg", R.drawable.ic_tong_dog);
+        bindAvatar(activity, rightAvatar, URL_HER, "avatar_her.jpg", R.drawable.ic_tong_cat);
 
         hint = new TextView(activity);
         hint.setTextSize(12f);
@@ -175,9 +188,8 @@ public final class TogetherRow extends LinearLayout {
         }
     }
 
-    private static ImageView avatar(Activity activity, Bitmap bitmap) {
+    private static ImageView avatar(Activity activity) {
         ImageView view = new ImageView(activity);
-        if (bitmap != null) view.setImageBitmap(bitmap);
         view.setScaleType(ImageView.ScaleType.FIT_CENTER);
         view.setClipToOutline(true);
         view.setOutlineProvider(new ViewOutlineProvider() {
@@ -189,21 +201,50 @@ public final class TogetherRow extends LinearLayout {
         return view;
     }
 
-    private static Bitmap cropAvatar(Context context, int resId) {
-        try {
-            Bitmap source = BitmapFactory.decodeResource(context.getResources(), resId);
-            if (source == null) return null;
-            int width = source.getWidth();
-            int height = source.getHeight();
-            int window = Math.max(1, Math.round(Math.min(width, height) * CROP_SCALE));
-            int spanX = Math.max(0, width - window);
-            int spanY = Math.max(0, height - window);
-            int x = Math.max(0, Math.min(spanX, spanX / 2));
-            int y = Math.max(0, Math.min(spanY, spanY / 2));
-            return Bitmap.createBitmap(source, x, y, window, window);
-        } catch (Throwable error) {
-            return null;
+    /** 先放内置图，再从缓存或网络换成真头像。 */
+    private static void bindAvatar(
+            Context context,
+            ImageView view,
+            String url,
+            String cacheName,
+            int fallbackRes
+    ) {
+        view.setImageResource(fallbackRes);
+        final File cache = new File(context.getCacheDir(), cacheName);
+        Bitmap cached = BitmapFactory.decodeFile(cache.getAbsolutePath());
+        if (cached != null) {
+            view.setImageBitmap(cached);
+            return;
         }
+        final Context appContext = context.getApplicationContext();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    URLConnection connection = new URL(url).openConnection();
+                    connection.setConnectTimeout(8000);
+                    connection.setReadTimeout(8000);
+                    try (InputStream input = connection.getInputStream();
+                         FileOutputStream output = new FileOutputStream(cache)) {
+                        byte[] buffer = new byte[8192];
+                        int read;
+                        while ((read = input.read(buffer)) > 0) {
+                            output.write(buffer, 0, read);
+                        }
+                    }
+                    final Bitmap bitmap = BitmapFactory.decodeFile(cache.getAbsolutePath());
+                    if (bitmap == null) return;
+                    new Handler(Looper.getMainLooper()).post(new Runnable() {
+                        @Override
+                        public void run() {
+                            view.setImageBitmap(bitmap);
+                        }
+                    });
+                } catch (Throwable ignored) {
+                    // 离线时保持内置图
+                }
+            }
+        }).start();
     }
 
     private LayoutParams circleParams() {

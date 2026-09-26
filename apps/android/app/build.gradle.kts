@@ -10,17 +10,8 @@ android {
         applicationId = "com.linjian.tongpin"
         minSdk = 26
         targetSdk = 34
-        versionCode = 21
+        versionCode = 22
         versionName = "1.3.1-tong"
-    }
-
-    sourceSets {
-        getByName("main") {
-            res.srcDirs(
-                "src/main/res",
-                "src/main/res/drawable-nodpi/apps/android/app/src/main/res/drawable-nodpi"
-            )
-        }
     }
 
     compileOptions {
