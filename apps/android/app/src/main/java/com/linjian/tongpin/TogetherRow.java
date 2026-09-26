@@ -35,11 +35,12 @@ public final class TogetherRow extends LinearLayout {
     private static final int GAP_OPEN_DP = 104;
     private static final int GAP_TOUCH_DP = 4;
 
-    private static final float CROP_SCALE = 0.62f;
-    private static final float HER_FOCUS_X = 0.56f;
-    private static final float HER_FOCUS_Y = 0.16f;
-    private static final float ME_FOCUS_X = 0.04f;
-    private static final float ME_FOCUS_Y = 0.16f;
+    // 取景窗口：40% 的一小块，只框住一颗头，不再把旁边的人带进来
+    private static final float CROP_SCALE = 0.40f;
+    private static final float HER_FOCUS_X = 0.17f;
+    private static final float HER_FOCUS_Y = 0.13f;
+    private static final float ME_FOCUS_X = 0.09f;
+    private static final float ME_FOCUS_Y = 0.00f;
 
     private static final int COLOR_CARD = 0xFFF4EDE2;
     private static final int COLOR_BORDER = 0xFFE8DAC9;
@@ -199,10 +200,12 @@ public final class TogetherRow extends LinearLayout {
             int width = source.getWidth();
             int height = source.getHeight();
             int window = Math.max(1, Math.round(Math.min(width, height) * CROP_SCALE));
-            int x = Math.round((width - window) * clamp(focusX));
-            int y = Math.round((height - window) * clamp(focusY));
-            x = Math.max(0, Math.min(width - window, x));
-            y = Math.max(0, Math.min(height - window, y));
+            int spanX = Math.max(0, width - window);
+            int spanY = Math.max(0, height - window);
+            int x = Math.round(spanX * clamp(focusX));
+            int y = Math.round(spanY * clamp(focusY));
+            x = Math.max(0, Math.min(spanX, x));
+            y = Math.max(0, Math.min(spanY, y));
             return Bitmap.createBitmap(source, x, y, window, window);
         } catch (Throwable error) {
             return null;
