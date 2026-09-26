@@ -23,7 +23,7 @@ import com.linjian.tongpin.data.Prefs;
 
 /**
  * 播放页下面的一条“一起听”。
- * 两个头像随歌曲进度从两边往中间靠，走到底就碰在一起。
+ * 左边是林霁，右边是桐桐，两个头像随歌曲进度从两边往中间靠，走到底就碰在一起。
  * 不修改 MainActivity 的原有布局，只往它的播放区里追加一层。
  */
 public final class TogetherRow extends LinearLayout {
@@ -35,12 +35,8 @@ public final class TogetherRow extends LinearLayout {
     private static final int GAP_OPEN_DP = 104;
     private static final int GAP_TOUCH_DP = 4;
 
-    // 取景窗口：40% 的一小块，只框住一颗头，不再把旁边的人带进来
-    private static final float CROP_SCALE = 0.40f;
-    private static final float HER_FOCUS_X = 0.17f;
-    private static final float HER_FOCUS_Y = 0.13f;
-    private static final float ME_FOCUS_X = 0.09f;
-    private static final float ME_FOCUS_Y = 0.00f;
+    // 头像图已经是裁好的方图，直接铺满，不再二次取景
+    private static final float CROP_SCALE = 1.00f;
 
     private static final int COLOR_CARD = 0xFFF4EDE2;
     private static final int COLOR_BORDER = 0xFFE8DAC9;
@@ -81,13 +77,13 @@ public final class TogetherRow extends LinearLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        leftAvatar = avatar(activity, cropAvatar(activity, R.drawable.avatar_her, HER_FOCUS_X, HER_FOCUS_Y));
+        leftAvatar = avatar(activity, cropAvatar(activity, R.drawable.avatar_me));
         stage.addView(leftAvatar, circleParams());
 
         spacer = new View(activity);
         stage.addView(spacer, new LayoutParams(dp(GAP_OPEN_DP), dp(2)));
 
-        rightAvatar = avatar(activity, cropAvatar(activity, R.drawable.avatar_me, ME_FOCUS_X, ME_FOCUS_Y));
+        rightAvatar = avatar(activity, cropAvatar(activity, R.drawable.avatar_her));
         stage.addView(rightAvatar, circleParams());
 
         hint = new TextView(activity);
@@ -193,7 +189,7 @@ public final class TogetherRow extends LinearLayout {
         return view;
     }
 
-    private static Bitmap cropAvatar(Context context, int resId, float focusX, float focusY) {
+    private static Bitmap cropAvatar(Context context, int resId) {
         try {
             Bitmap source = BitmapFactory.decodeResource(context.getResources(), resId);
             if (source == null) return null;
@@ -202,20 +198,12 @@ public final class TogetherRow extends LinearLayout {
             int window = Math.max(1, Math.round(Math.min(width, height) * CROP_SCALE));
             int spanX = Math.max(0, width - window);
             int spanY = Math.max(0, height - window);
-            int x = Math.round(spanX * clamp(focusX));
-            int y = Math.round(spanY * clamp(focusY));
-            x = Math.max(0, Math.min(spanX, x));
-            y = Math.max(0, Math.min(spanY, y));
+            int x = Math.max(0, Math.min(spanX, spanX / 2));
+            int y = Math.max(0, Math.min(spanY, spanY / 2));
             return Bitmap.createBitmap(source, x, y, window, window);
         } catch (Throwable error) {
             return null;
         }
-    }
-
-    private static float clamp(float value) {
-        if (value < 0f) return 0f;
-        if (value > 1f) return 1f;
-        return value;
     }
 
     private LayoutParams circleParams() {
