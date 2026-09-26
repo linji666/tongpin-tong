@@ -41,12 +41,21 @@ public final class TogetherRow extends LinearLayout {
     private static final int GAP_OPEN_DP = 104;
     private static final int GAP_TOUCH_DP = 4;
 
-    private static final String REMOTE_DIR =
-            "https://raw.githubusercontent.com/linji666/tongpin-tong/main/"
-                    + "apps/android/app/src/main/res/drawable-nodpi/"
+    private static final String NESTED =
+            "apps/android/app/src/main/res/drawable-nodpi/"
                     + "apps/android/app/src/main/res/drawable-nodpi/";
-    private static final String URL_ME = REMOTE_DIR + "avatar_me.jpg";
-    private static final String URL_HER = REMOTE_DIR + "avatar_her.jpg";
+
+    private static final String[] HOST_ME = new String[]{
+            "https://cdn.jsdelivr.net/gh/linji666/tongpin-tong@main/" + NESTED + "avatar_me.jpg",
+            "https://raw.githubusercontent.com/linji666/tongpin-tong/main/" + NESTED + "avatar_me.jpg",
+            "https://ghproxy.net/https://raw.githubusercontent.com/linji666/tongpin-tong/main/" + NESTED + "avatar_me.jpg"
+    };
+
+    private static final String[] HOST_HER = new String[]{
+            "https://cdn.jsdelivr.net/gh/linji666/tongpin-tong@main/" + NESTED + "avatar_her.jpg",
+            "https://raw.githubusercontent.com/linji666/tongpin-tong/main/" + NESTED + "avatar_her.jpg",
+            "https://ghproxy.net/https://raw.githubusercontent.com/linji666/tongpin-tong/main/" + NESTED + "avatar_her.jpg"
+    };
 
     private static final int COLOR_CARD = 0xFFF4EDE2;
     private static final int COLOR_BORDER = 0xFFE8DAC9;
@@ -96,8 +105,8 @@ public final class TogetherRow extends LinearLayout {
         rightAvatar = avatar(activity);
         stage.addView(rightAvatar, circleParams());
 
-        bindAvatar(activity, leftAvatar, URL_ME, "avatar_me.jpg", R.drawable.ic_tong_dog);
-        bindAvatar(activity, rightAvatar, URL_HER, "avatar_her.jpg", R.drawable.ic_tong_cat);
+        bindAvatar(activity, leftAvatar, HOST_ME, "avatar_me.jpg", R.drawable.ic_tong_dog);
+        bindAvatar(activity, rightAvatar, HOST_HER, "avatar_her.jpg", R.drawable.ic_tong_cat);
 
         hint = new TextView(activity);
         hint.setTextSize(12f);
@@ -201,11 +210,11 @@ public final class TogetherRow extends LinearLayout {
         return view;
     }
 
-    /** 先放内置图，再从缓存或网络换成真头像。 */
+    /** 先放内置图，再从缓存或网络换成真头像；多个源依次试。 */
     private static void bindAvatar(
             Context context,
-            ImageView view,
-            String url,
+            final ImageView view,
+            final String[] hosts,
             String cacheName,
             int fallbackRes
     ) {
@@ -216,35 +225,51 @@ public final class TogetherRow extends LinearLayout {
             view.setImageBitmap(cached);
             return;
         }
-        final Context appContext = context.getApplicationContext();
         new Thread(new Runnable() {
             @Override
             public void run() {
-                try {
-                    URLConnection connection = new URL(url).openConnection();
-                    connection.setConnectTimeout(8000);
-                    connection.setReadTimeout(8000);
-                    try (InputStream input = connection.getInputStream();
-                         FileOutputStream output = new FileOutputStream(cache)) {
-                        byte[] buffer = new byte[8192];
-                        int read;
-                        while ((read = input.read(buffer)) > 0) {
-                            output.write(buffer, 0, read);
-                        }
+                for (String host : hosts) {
+                    if (download(host, cache)) {
+                        final Bitmap bitmap = BitmapFactory.decodeFile(cache.getAbsolutePath());
+                        if (bitmap == null) continue;
+                        new Handler(Looper.getMainLooper()).post(new Runnable() {
+                            @Override
+                            public void run() {
+                                view.setImageBitmap(bitmap);
+                            }
+                        });
+                        return;
                     }
-                    final Bitmap bitmap = BitmapFactory.decodeFile(cache.getAbsolutePath());
-                    if (bitmap == null) return;
-                    new Handler(Looper.getMainLooper()).post(new Runnable() {
-                        @Override
-                        public void run() {
-                            view.setImageBitmap(bitmap);
-                        }
-                    });
-                } catch (Throwable ignored) {
-                    // 离线时保持内置图
                 }
             }
         }).start();
+    }
+
+    private static boolean download(String url, File target) {
+        try {
+            URLConnection connection = new URL(url).openConnection();
+            connection.setConnectTimeout(8000);
+            connection.setReadTimeout(8000);
+            connection.setRequestProperty("User-Agent", "tongpin-android");
+            InputStream input = connection.getInputStream();
+            File temp = new File(target.getAbsolutePath() + ".part");
+            FileOutputStream output = new FileOutputStream(temp);
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = input.read(buffer)) > 0) {
+                output.write(buffer, 0, read);
+            }
+            output.close();
+            input.close();
+            if (temp.length() < 1024) {
+                temp.delete();
+                return false;
+            }
+            if (target.exists()) target.delete();
+            return temp.renameTo(target);
+        } catch (Throwable error) {
+            return false;
+        }
     }
 
     private LayoutParams circleParams() {
